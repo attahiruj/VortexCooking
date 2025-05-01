@@ -234,7 +234,7 @@ class RobotControllerApp:
             print("Command sent successfully")
         else:
             messagebox.showerror("Error", "Failed to send command")
-
+  
     def reset_position(self):
         for name in self.servo_values:
             self.servo_values[name].set(0)

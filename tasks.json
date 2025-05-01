@@ -17,6 +17,16 @@
     "actions": [
       {
         "positions": {
+          "base": 1500,
+          "shoulder": 1750,
+          "elbow": 800,
+          "wrist": 600,
+          "gripper": 1000
+        },
+        "delay": 1000
+      },
+      {
+        "positions": {
           "base": 1010,
           "shoulder": 1750,
           "elbow": 800,
@@ -97,33 +107,53 @@
       },
       {
         "positions": {
-          "base": 1500,
-          "shoulder": 1630,
+          "base": 1010,
+          "shoulder": 1750,
           "elbow": 800,
           "wrist": 600,
           "gripper": 1708
         },
-        "delay": 6000
+        "delay": 5000
       },
       {
         "positions": {
-          "base": 1500,
-          "shoulder": 1630,
+          "base": 1010,
+          "shoulder": 1450,
           "elbow": 800,
           "wrist": 600,
           "gripper": 1708
         },
-        "delay": 4000
+        "delay": 5000
       },
       {
         "positions": {
-          "base": 1500,
-          "shoulder": 1630,
+          "base": 1010,
+          "shoulder": 1450,
+          "elbow": 800,
+          "wrist": 600,
+          "gripper": 1708
+        },
+        "delay": 5000
+      },
+      {
+        "positions": {
+          "base": 1010,
+          "shoulder": 1450,
           "elbow": 800,
           "wrist": 600,
           "gripper": 1000
         },
-        "delay": 4000
+        "delay": 3000
+      },
+      {
+        "positions": {
+          "base": 1010,
+          "shoulder": 1750,
+          "elbow": 800,
+          "wrist": 600,
+          "gripper": 1000
+        },
+        "delay": 5000
       },
       {
         "positions": {
@@ -133,7 +163,7 @@
           "wrist": 600,
           "gripper": 1000
         },
-        "delay": 4000
+        "delay": 1000
       }
     ]
   },
