@@ -21,39 +21,39 @@ servo_config = {
         "rest"        : 1500,
         "min"         : 600,
         "max"         : 2400,
-        "min_angle"   : -90,
-        "max_angle"   : 90,
+        "min_angle"   : 0,
+        "max_angle"   : 100,
     },
     "shoulder": {
         "pin"         : 10,
         "rest"        : 1750,
         "min"         : 1000,
         "max"         : 1750,
-        "min_angle"   : -75,
-        "max_angle"   : -50,
+        "min_angle"   : 0,
+        "max_angle"   : 100,
     },
     "elbow": {
         "pin"         : 7,
         "rest"        : 800,
         "min"         : 800,
         "max"         : 1650,
-        "min_angle"   : -75,
-        "max_angle"   : 75,
+        "min_angle"   : 0,
+        "max_angle"   : 100,
     },
     "wrist": {
         "pin"         : 6,
         "rest"        : 600,
         "min"         : 600,       # close
         "max"         : 2400,       # open
-        "min_angle"   : -90,
-        "max_angle"   : 90,
+        "min_angle"   : 0,
+        "max_angle"   : 100,
     },
     "gripper": {
         "pin"         : 0,
         "rest"        : 1000,
         "min"         : 1000,       # close
         "max"         : 2100,       # open
-        "min_angle"   : -90,
-        "max_angle"   : 90,
+        "min_angle"   : 0,
+        "max_angle"   : 100,
     }
 }
