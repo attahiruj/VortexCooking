@@ -33,6 +33,9 @@ class RobotControllerApp:
         self.task_manager = TaskManager(self.controller)
         self.current_task_actions = []
         self.selected_task_var = tk.StringVar()
+        
+        # Task execution thread reference
+        self.task_thread = None
 
         self.build_ui()
         for servo_name in servo_config:
@@ -130,6 +133,11 @@ class RobotControllerApp:
 
         self.run_task_btn = ttk.Button(buttons_frame, text="Run Task", command=self.run_task, state=tk.DISABLED)
         self.run_task_btn.pack(side="left", padx=2)
+        
+        # Add Stop Task button
+        self.stop_task_btn = ttk.Button(buttons_frame, text="Stop Task", command=self.stop_task, state=tk.DISABLED)
+        self.stop_task_btn.pack(side="left", padx=2)
+        
         ttk.Button(buttons_frame, text="New Task", command=self.new_task).pack(side="left", padx=2)
         self.delete_task_btn = ttk.Button(buttons_frame, text="Delete Task", command=self.delete_task, state=tk.DISABLED)
         self.delete_task_btn.pack(side="left", padx=2)
@@ -200,6 +208,7 @@ class RobotControllerApp:
             self.connect_btn.config(text="Connect")
             self.send_btn.config(state=tk.DISABLED)
             self.run_task_btn.config(state=tk.DISABLED)
+            self.stop_task_btn.config(state=tk.DISABLED)
 
     def update_servo_display(self, name):
         angle = self.servo_values[name].get()
@@ -252,6 +261,16 @@ class RobotControllerApp:
         has_selection = bool(self.selected_task_var.get() in task_names)
         self.delete_task_btn['state'] = tk.NORMAL if has_selection else tk.DISABLED
         self.run_task_btn['state'] = tk.NORMAL if has_selection and self.connected else tk.DISABLED
+        
+        # Update Stop button state based on task running status
+        self.update_stop_button_state()
+
+    def update_stop_button_state(self):
+        """Update the state of the stop button based on whether a task is running."""
+        if self.task_manager.is_task_running() and self.connected:
+            self.stop_task_btn.config(state=tk.NORMAL)
+        else:
+            self.stop_task_btn.config(state=tk.DISABLED)
 
     def update_actions_display(self):
         """Update the actions treeview with current actions."""
@@ -355,6 +374,10 @@ class RobotControllerApp:
         task_name = self.selected_task_var.get()
         if not task_name:
             return
+            
+        # Disable Run button and enable Stop button
+        self.run_task_btn.config(state=tk.DISABLED)
+        self.stop_task_btn.config(state=tk.NORMAL)
         
         # Create a thread to run the task to avoid freezing UI
         def run_task_thread():
@@ -362,11 +385,28 @@ class RobotControllerApp:
             # Pass the current speed setting to the task execution
             speed = self.speed_var.get()
             success = self.task_manager.execute_task(task_name, speed=speed, callback=self.update_task_progress)
-            self.task_status_var.set("Task completed" if success else "Task failed")
+            
+            # Update UI when task completes (either successfully or due to stopping)
+            status = "Task completed" if success else "Task stopped" if self.task_manager.stop_flag.is_set() else "Task failed"
+            self.task_status_var.set(status)
+            
+            # Reset button states
+            self.root.after(0, self.update_stop_button_state)
+            self.root.after(0, lambda: self.run_task_btn.config(state=tk.NORMAL if self.connected else tk.DISABLED))
+            
             # Clear status after a delay
             self.root.after(3000, lambda: self.task_status_var.set(""))
         
-        threading.Thread(target=run_task_thread).start()
+        self.task_thread = threading.Thread(target=run_task_thread)
+        self.task_thread.daemon = True  # Make thread exit when main program exits
+        self.task_thread.start()
+
+    def stop_task(self):
+        """Stop the currently running task."""
+        if self.task_manager.is_task_running():
+            self.task_status_var.set("Stopping task...")
+            self.task_manager.stop_running_task()
+            # Button states will be updated when the task thread exits
 
     def update_task_progress(self, current_action, total_actions):
         """Update task progress in UI."""

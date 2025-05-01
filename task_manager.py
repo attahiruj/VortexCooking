@@ -1,6 +1,7 @@
 import json
 import os
 import time
+import threading
 from typing import List, Dict, Any
 
 class TaskManager:
@@ -13,6 +14,8 @@ class TaskManager:
         self.tasks_file = "tasks.json"
         self.controller = controller
         self.tasks = self._load_tasks()
+        self.stop_flag = threading.Event()
+        self.is_running = False
     
     def _load_tasks(self) -> Dict[str, Any]:
         """Load tasks from the JSON file."""
@@ -46,7 +49,7 @@ class TaskManager:
         Args:
             task_name: Name of the task
             actions: List of action dictionaries, each containing:
-                - positions: Dictionary mapping servo names to angles
+                - positions: Dictionary mapping servo names to PWM values
                 - delay: Time in milliseconds to wait after executing the action
         
         Returns:
@@ -69,6 +72,23 @@ class TaskManager:
         """Get a task's details by name."""
         return self.tasks.get(task_name, {})
     
+    def is_task_running(self) -> bool:
+        """Check if a task is currently running."""
+        return self.is_running
+    
+    def stop_running_task(self) -> bool:
+        """
+        Signal to stop the currently running task.
+        
+        Returns:
+            bool: True if a task was running and stop was signaled
+        """
+        if not self.is_running:
+            return False
+            
+        self.stop_flag.set()
+        return True
+    
     def execute_task(self, task_name: str, speed: int = 300, callback=None) -> bool:
         """
         Execute all actions in a task with specified delays.
@@ -81,6 +101,10 @@ class TaskManager:
         Returns:
             bool: True if the task executed successfully
         """
+        if self.is_running:
+            print("A task is already running")
+            return False
+            
         if not self.controller:
             print("No controller connected")
             return False
@@ -88,36 +112,58 @@ class TaskManager:
         task = self.get_task(task_name)
         if not task or "actions" not in task:
             return False
-            
-        for i, action in enumerate(task["actions"]):
-            if callback:
-                callback(i, len(task["actions"]))
-                
-            # Convert action positions into controller-friendly format
-            servo_positions = []
-            for servo_name, pwm in action["positions"].items():
-                # Extract pin number from servo config (to be passed from main app)
-                if hasattr(self.controller, "servo_config") and servo_name in self.controller.servo_config:
-                    pin = self.controller.servo_config[servo_name]["pin"]
-                    servo_positions.append((pin, pwm))
-            
-            # Execute the movement
-            if servo_positions:
-                success = self.controller.move_multiple_servos(
-                    servo_positions, 
-                    speed=speed,  # Use the provided speed parameter
-                    angle=False  # Using PWM values directly
-                )
-                
-                if not success:
+        
+        # Reset stop flag before starting
+        self.stop_flag.clear()
+        self.is_running = True
+        
+        try:
+            for i, action in enumerate(task["actions"]):
+                # Check if stop was requested
+                if self.stop_flag.is_set():
+                    print("Task execution stopped")
                     return False
-            
-            # Wait for the specified delay before the next action
-            if i < len(task["actions"]) - 1:  # Don't delay after the last action
-                delay_ms = action.get("delay", 1000)
-                time.sleep(delay_ms / 1000)  # Convert milliseconds to seconds
+                    
+                if callback:
+                    callback(i, len(task["actions"]))
+                    
+                # Convert action positions into controller-friendly format
+                servo_positions = []
+                for servo_name, pwm in action["positions"].items():
+                    # Extract pin number from servo config (to be passed from main app)
+                    if hasattr(self.controller, "servo_config") and servo_name in self.controller.servo_config:
+                        pin = self.controller.servo_config[servo_name]["pin"]
+                        servo_positions.append((pin, pwm))
                 
-        return True
+                # Execute the movement
+                if servo_positions:
+                    success = self.controller.move_multiple_servos(
+                        servo_positions, 
+                        speed=speed,  # Use the provided speed parameter
+                        angle=False  # Using PWM values directly
+                    )
+                    
+                    if not success:
+                        return False
+                
+                # Wait for the specified delay before the next action
+                if i < len(task["actions"]) - 1:  # Don't delay after the last action
+                    delay_ms = action.get("delay", 1000)
+                    delay_s = delay_ms / 1000  # Convert milliseconds to seconds
+                    
+                    # Instead of a single sleep, we break it into smaller intervals
+                    # to check the stop flag periodically
+                    start_time = time.time()
+                    while time.time() - start_time < delay_s:
+                        if self.stop_flag.is_set():
+                            print("Task execution stopped during delay")
+                            return False
+                        time.sleep(0.1)  # Check stop flag every 100ms
+                    
+            return True
+        finally:
+            self.is_running = False
+            self.stop_flag.clear()
     
     def set_controller(self, controller):
         """Set the controller instance for executing tasks."""
