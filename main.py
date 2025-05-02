@@ -5,6 +5,7 @@ from ssc32u import SSC_32U
 from task_manager import TaskManager
 import threading
 
+
 class RobotControllerApp:
     def __init__(self, root):
         self.root = root
@@ -13,9 +14,9 @@ class RobotControllerApp:
         self.root.resizable(False, False)
 
         self.controller = SSC_32U()
-        # Pass servo_config to the controller for the task manager to use
+        # Pass config to the controller for the task manager to use
         self.controller.servo_config = servo_config
-        self.controller.hand_config = hand_config  # Add hand_config to the controller
+        self.controller.hand_config = hand_config
         self.connected = False
 
         self.port_var = tk.StringVar(value="COM3")
@@ -29,7 +30,7 @@ class RobotControllerApp:
         self.servo_sliders = {}
         self.servo_angle_labels = {}
         self.servo_pwm_labels = {}
-        
+
         # Hand state variables
         self.finger_states = {}
         self.finger_buttons = {}
@@ -40,7 +41,7 @@ class RobotControllerApp:
         self.task_manager = TaskManager(self.controller)
         self.current_task_actions = []
         self.selected_task_var = tk.StringVar()
-        
+
         # Task execution thread reference
         self.task_thread = None
 
@@ -103,14 +104,14 @@ class RobotControllerApp:
         """Build the hand control frame with buttons for each finger."""
         frame = ttk.LabelFrame(self.root, text="Hand Controls")
         frame.pack(fill="x", padx=10, pady=10)
-        
+
         # Create a row of buttons for each finger
         button_frame = ttk.Frame(frame)
         button_frame.pack(pady=10)
-        
+
         # Add a label to explain the controls
         ttk.Label(button_frame, text="Finger Controls:").grid(row=0, column=0, padx=5, pady=5)
-        
+
         # Create buttons for each finger
         for i, finger in enumerate(hand_config.keys()):
             # Create a toggle button for each finger
@@ -120,20 +121,20 @@ class RobotControllerApp:
                 command=lambda f=finger: self.toggle_finger(f)
             )
             self.finger_buttons[finger].grid(row=0, column=i+1, padx=10)
-            
+
         # Add all fingers control
         ttk.Button(
-            button_frame, 
-            text="Open All", 
+            button_frame,
+            text="Open All",
             command=self.open_all_fingers
         ).grid(row=1, column=1, padx=10, pady=10)
-        
+
         ttk.Button(
-            button_frame, 
-            text="Close All", 
+            button_frame,
+            text="Close All",
             command=self.close_all_fingers
         ).grid(row=1, column=2, padx=10, pady=10)
-        
+
         # Add to task button
         ttk.Button(
             button_frame,
@@ -183,11 +184,11 @@ class RobotControllerApp:
 
         self.run_task_btn = ttk.Button(buttons_frame, text="Run Task", command=self.run_task, state=tk.DISABLED)
         self.run_task_btn.pack(side="left", padx=2)
-        
+
         # Add Stop Task button
         self.stop_task_btn = ttk.Button(buttons_frame, text="Stop Task", command=self.stop_task, state=tk.DISABLED)
         self.stop_task_btn.pack(side="left", padx=2)
-        
+
         ttk.Button(buttons_frame, text="New Task", command=self.new_task).pack(side="left", padx=2)
         self.delete_task_btn = ttk.Button(buttons_frame, text="Delete Task", command=self.delete_task, state=tk.DISABLED)
         self.delete_task_btn.pack(side="left", padx=2)
@@ -215,24 +216,24 @@ class RobotControllerApp:
         self.actions_tree.heading('index', text='#')
         self.actions_tree.heading('positions', text='Positions')
         self.actions_tree.heading('delay', text='Delay (ms)')
-        
+
         self.actions_tree.column('index', width=30, anchor='center')
         self.actions_tree.column('positions', width=500)
         self.actions_tree.column('delay', width=80, anchor='center')
-        
+
         self.actions_tree.pack(side="left", fill="both", expand=True)
-        
+
         # Scrollbar for treeview
         scrollbar = ttk.Scrollbar(bottom_frame, orient="vertical", command=self.actions_tree.yview)
         scrollbar.pack(side="right", fill="y")
         self.actions_tree.configure(yscrollcommand=scrollbar.set)
-        
+
         # Right-click menu for actions
         self.action_menu = tk.Menu(self.root, tearoff=0)
         self.action_menu.add_command(label="Delete", command=self.delete_action)
         self.action_menu.add_command(label="Move Up", command=lambda: self.move_action(-1))
         self.action_menu.add_command(label="Move Down", command=lambda: self.move_action(1))
-        
+
         self.actions_tree.bind("<Button-3>", self.show_action_menu)
 
     # Hand control methods
@@ -241,18 +242,18 @@ class RobotControllerApp:
         if not self.connected:
             messagebox.showerror("Error", "Not connected to robot")
             return
-            
+
         # Toggle the state
         self.finger_states[finger] = not self.finger_states[finger]
-        
+
         # Update button text
         state_text = "Open" if self.finger_states[finger] else "Closed"
         self.finger_buttons[finger].config(text=f"{finger.capitalize()}: {state_text}")
-        
+
         # Send command to the servo
         config = hand_config[finger]
         pwm = config["open"] if self.finger_states[finger] else config["close"]
-        
+
         success = self.controller.move_servo(config["pin"], pwm, speed=self.speed_var.get())
         if not success:
             messagebox.showerror("Error", f"Failed to move {finger} finger")
@@ -266,13 +267,13 @@ class RobotControllerApp:
         if not self.connected:
             messagebox.showerror("Error", "Not connected to robot")
             return
-            
+
         commands = []
         for finger, config in hand_config.items():
             self.finger_states[finger] = True
             self.finger_buttons[finger].config(text=f"{finger.capitalize()}: Open")
             commands.append((config["pin"], config["open"]))
-            
+
         success = self.controller.move_multiple_servos(commands, speed=self.speed_var.get())
         if not success:
             messagebox.showerror("Error", "Failed to open all fingers")
@@ -283,13 +284,13 @@ class RobotControllerApp:
         if not self.connected:
             messagebox.showerror("Error", "Not connected to robot")
             return
-            
+
         commands = []
         for finger, config in hand_config.items():
             self.finger_states[finger] = False
             self.finger_buttons[finger].config(text=f"{finger.capitalize()}: Closed")
             commands.append((config["pin"], config["close"]))
-            
+
         success = self.controller.move_multiple_servos(commands, speed=self.speed_var.get())
         if not success:
             messagebox.showerror("Error", "Failed to close all fingers")
@@ -301,12 +302,12 @@ class RobotControllerApp:
             config = hand_config[finger]
             pwm = config["open"] if is_open else config["close"]
             positions[f"hand_{finger}"] = pwm
-            
+
         # Check if there are any positions to add
         if not positions:
             messagebox.showinfo("Info", "No hand positions to add")
             return
-            
+
         action = {
             "positions": positions,
             "delay": self.delay_var.get()
@@ -363,7 +364,7 @@ class RobotControllerApp:
             print("Command sent successfully")
         else:
             messagebox.showerror("Error", "Failed to send command")
-  
+
     def reset_position(self):
         for name in self.servo_values:
             self.servo_values[name].set(0)
@@ -385,12 +386,12 @@ class RobotControllerApp:
         """Update the task dropdown with available tasks."""
         task_names = self.task_manager.get_task_names()
         self.task_combo['values'] = task_names
-        
+
         # Enable/disable run and delete buttons based on selection
         has_selection = bool(self.selected_task_var.get() in task_names)
         self.delete_task_btn['state'] = tk.NORMAL if has_selection else tk.DISABLED
         self.run_task_btn['state'] = tk.NORMAL if has_selection and self.connected else tk.DISABLED
-        
+
         # Update Stop button state based on task running status
         self.update_stop_button_state()
 
@@ -406,7 +407,7 @@ class RobotControllerApp:
         # Clear current items
         for item in self.actions_tree.get_children():
             self.actions_tree.delete(item)
-            
+
         # Add actions
         for i, action in enumerate(self.current_task_actions):
             # Display both PWM and approximate angle for better readability
@@ -430,7 +431,7 @@ class RobotControllerApp:
                     position_details.append(f"{name}: {pwm}μs (~{approx_angle}°)")
                 else:
                     position_details.append(f"{name}: {pwm}μs")
-                    
+
             positions_str = ", ".join(position_details)
             self.actions_tree.insert('', 'end', values=(i+1, positions_str, action["delay"]))
 
@@ -442,7 +443,7 @@ class RobotControllerApp:
             angle = var.get()
             pwm = self.controller.calculate_pwm_for_servo(name, angle)
             positions[name] = pwm
-            
+
         action = {
             "positions": positions,
             "delay": self.delay_var.get()
@@ -466,11 +467,11 @@ class RobotControllerApp:
         if not task_name:
             messagebox.showerror("Error", "No task selected")
             return
-            
+
         if not self.current_task_actions:
             messagebox.showerror("Error", "No actions to save")
             return
-            
+
         success = self.task_manager.save_task(task_name, self.current_task_actions)
         if success:
             messagebox.showinfo("Success", f"Task '{task_name}' saved successfully")
@@ -483,7 +484,7 @@ class RobotControllerApp:
         task_name = self.selected_task_var.get()
         if not task_name:
             return
-            
+
         if messagebox.askyesno("Confirm Delete", f"Delete task '{task_name}'?"):
             success = self.task_manager.delete_task(task_name)
             if success:
@@ -506,33 +507,33 @@ class RobotControllerApp:
         if not self.connected:
             messagebox.showerror("Error", "Not connected to robot")
             return
-            
+
         task_name = self.selected_task_var.get()
         if not task_name:
             return
-            
+
         # Disable Run button and enable Stop button
         self.run_task_btn.config(state=tk.DISABLED)
         self.stop_task_btn.config(state=tk.NORMAL)
-        
+
         # Create a thread to run the task to avoid freezing UI
         def run_task_thread():
             self.task_status_var.set("Running task...")
             # Pass the current speed setting to the task execution
             speed = self.speed_var.get()
             success = self.task_manager.execute_task(task_name, speed=speed, callback=self.update_task_progress)
-            
+
             # Update UI when task completes (either successfully or due to stopping)
             status = "Task completed" if success else "Task stopped" if self.task_manager.stop_flag.is_set() else "Task failed"
             self.task_status_var.set(status)
-            
+
             # Reset button states
             self.root.after(0, self.update_stop_button_state)
             self.root.after(0, lambda: self.run_task_btn.config(state=tk.NORMAL if self.connected else tk.DISABLED))
-            
+
             # Clear status after a delay
             self.root.after(3000, lambda: self.task_status_var.set(""))
-        
+
         self.task_thread = threading.Thread(target=run_task_thread)
         self.task_thread.daemon = True  # Make thread exit when main program exits
         self.task_thread.start()
@@ -569,10 +570,10 @@ class RobotControllerApp:
         selected = self.actions_tree.selection()
         if not selected:
             return
-            
+
         index = int(self.actions_tree.item(selected[0])['values'][0]) - 1
         new_index = index + direction
-        
+
         if 0 <= new_index < len(self.current_task_actions):
             self.current_task_actions[index], self.current_task_actions[new_index] = \
                 self.current_task_actions[new_index], self.current_task_actions[index]
