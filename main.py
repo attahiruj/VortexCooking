@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
-from robot_config import servo_config
+from robot_config import servo_config, hand_config
 from ssc32u import SSC_32U
 from task_manager import TaskManager
 import threading
@@ -9,12 +9,13 @@ class RobotControllerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Robot Arm Controller")
-        self.root.geometry("800x750")
+        self.root.geometry("800x800")  # Increased height to accommodate hand controls
         self.root.resizable(False, False)
 
         self.controller = SSC_32U()
         # Pass servo_config to the controller for the task manager to use
         self.controller.servo_config = servo_config
+        self.controller.hand_config = hand_config  # Add hand_config to the controller
         self.connected = False
 
         self.port_var = tk.StringVar(value="COM3")
@@ -28,6 +29,12 @@ class RobotControllerApp:
         self.servo_sliders = {}
         self.servo_angle_labels = {}
         self.servo_pwm_labels = {}
+        
+        # Hand state variables
+        self.finger_states = {}
+        self.finger_buttons = {}
+        for finger in hand_config:
+            self.finger_states[finger] = False  # False = closed, True = open
 
         # Initialize task manager
         self.task_manager = TaskManager(self.controller)
@@ -46,6 +53,7 @@ class RobotControllerApp:
     def build_ui(self):
         self.build_connection_frame()
         self.build_servo_frame()
+        self.build_hand_frame()  # New hand control frame
         self.build_movement_frame()
         self.build_buttons()
         self.build_command_preview()
@@ -90,6 +98,48 @@ class RobotControllerApp:
             pwm_var = tk.StringVar(value=str(config["rest"]))
             self.servo_pwm_labels[name] = pwm_var
             ttk.Label(frame, textvariable=pwm_var, width=8).grid(row=i, column=3)
+
+    def build_hand_frame(self):
+        """Build the hand control frame with buttons for each finger."""
+        frame = ttk.LabelFrame(self.root, text="Hand Controls")
+        frame.pack(fill="x", padx=10, pady=10)
+        
+        # Create a row of buttons for each finger
+        button_frame = ttk.Frame(frame)
+        button_frame.pack(pady=10)
+        
+        # Add a label to explain the controls
+        ttk.Label(button_frame, text="Finger Controls:").grid(row=0, column=0, padx=5, pady=5)
+        
+        # Create buttons for each finger
+        for i, finger in enumerate(hand_config.keys()):
+            # Create a toggle button for each finger
+            self.finger_buttons[finger] = ttk.Button(
+                button_frame,
+                text=f"{finger.capitalize()}: Closed",
+                command=lambda f=finger: self.toggle_finger(f)
+            )
+            self.finger_buttons[finger].grid(row=0, column=i+1, padx=10)
+            
+        # Add all fingers control
+        ttk.Button(
+            button_frame, 
+            text="Open All", 
+            command=self.open_all_fingers
+        ).grid(row=1, column=1, padx=10, pady=10)
+        
+        ttk.Button(
+            button_frame, 
+            text="Close All", 
+            command=self.close_all_fingers
+        ).grid(row=1, column=2, padx=10, pady=10)
+        
+        # Add to task button
+        ttk.Button(
+            button_frame,
+            text="Add Hand Position to Task",
+            command=self.add_hand_position_to_task
+        ).grid(row=1, column=3, padx=10, pady=10)
 
     def build_movement_frame(self):
         frame = ttk.LabelFrame(self.root, text="Movement Controls")
@@ -184,6 +234,85 @@ class RobotControllerApp:
         self.action_menu.add_command(label="Move Down", command=lambda: self.move_action(1))
         
         self.actions_tree.bind("<Button-3>", self.show_action_menu)
+
+    # Hand control methods
+    def toggle_finger(self, finger):
+        """Toggle a finger's state between open and closed."""
+        if not self.connected:
+            messagebox.showerror("Error", "Not connected to robot")
+            return
+            
+        # Toggle the state
+        self.finger_states[finger] = not self.finger_states[finger]
+        
+        # Update button text
+        state_text = "Open" if self.finger_states[finger] else "Closed"
+        self.finger_buttons[finger].config(text=f"{finger.capitalize()}: {state_text}")
+        
+        # Send command to the servo
+        config = hand_config[finger]
+        pwm = config["open"] if self.finger_states[finger] else config["close"]
+        
+        success = self.controller.move_servo(config["pin"], pwm, speed=self.speed_var.get())
+        if not success:
+            messagebox.showerror("Error", f"Failed to move {finger} finger")
+            # Revert state if failed
+            self.finger_states[finger] = not self.finger_states[finger]
+            state_text = "Open" if self.finger_states[finger] else "Closed"
+            self.finger_buttons[finger].config(text=f"{finger.capitalize()}: {state_text}")
+
+    def open_all_fingers(self):
+        """Open all fingers."""
+        if not self.connected:
+            messagebox.showerror("Error", "Not connected to robot")
+            return
+            
+        commands = []
+        for finger, config in hand_config.items():
+            self.finger_states[finger] = True
+            self.finger_buttons[finger].config(text=f"{finger.capitalize()}: Open")
+            commands.append((config["pin"], config["open"]))
+            
+        success = self.controller.move_multiple_servos(commands, speed=self.speed_var.get())
+        if not success:
+            messagebox.showerror("Error", "Failed to open all fingers")
+            # Don't attempt to revert state, as it would be complicated to determine which ones failed
+
+    def close_all_fingers(self):
+        """Close all fingers."""
+        if not self.connected:
+            messagebox.showerror("Error", "Not connected to robot")
+            return
+            
+        commands = []
+        for finger, config in hand_config.items():
+            self.finger_states[finger] = False
+            self.finger_buttons[finger].config(text=f"{finger.capitalize()}: Closed")
+            commands.append((config["pin"], config["close"]))
+            
+        success = self.controller.move_multiple_servos(commands, speed=self.speed_var.get())
+        if not success:
+            messagebox.showerror("Error", "Failed to close all fingers")
+
+    def add_hand_position_to_task(self):
+        """Add current hand position as a new action."""
+        positions = {}
+        for finger, is_open in self.finger_states.items():
+            config = hand_config[finger]
+            pwm = config["open"] if is_open else config["close"]
+            positions[f"hand_{finger}"] = pwm
+            
+        # Check if there are any positions to add
+        if not positions:
+            messagebox.showinfo("Info", "No hand positions to add")
+            return
+            
+        action = {
+            "positions": positions,
+            "delay": self.delay_var.get()
+        }
+        self.current_task_actions.append(action)
+        self.update_actions_display()
 
     def toggle_connection(self):
         if not self.connected:
@@ -283,8 +412,15 @@ class RobotControllerApp:
             # Display both PWM and approximate angle for better readability
             position_details = []
             for name, pwm in action["positions"].items():
-                # Try to calculate an approximate angle for display purposes
-                if name in servo_config:
+                # Check if it's a hand position
+                if name.startswith("hand_"):
+                    finger = name.split("_")[1]
+                    if finger in hand_config:
+                        config = hand_config[finger]
+                        state = "Open" if pwm == config["open"] else "Closed"
+                        position_details.append(f"{finger}: {state} ({pwm}μs)")
+                # Or a servo position
+                elif name in servo_config:
                     config = servo_config[name]
                     # Approximate angle from PWM (reverse of calculate_pwm_for_servo)
                     percent = (pwm - config["min"]) / (config["max"] - config["min"])

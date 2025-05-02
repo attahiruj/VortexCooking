@@ -57,3 +57,21 @@ servo_config = {
         "max_angle"   : 100,
     }
 }
+
+hand_config = {
+    "index": {
+        "pin"         : 12,
+        "close"        : 500,
+        "open"         : 2100,       # close
+    },
+    "middle": {
+        "pin"         : 13,
+        "close"        : 2100,
+        "open"         : 500,       # close
+    },
+    "ring": {
+        "pin"         : 14,
+        "close"        : 2100,
+        "open"         : 500,       # close
+    },
+}
